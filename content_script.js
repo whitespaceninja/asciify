@@ -5,7 +5,8 @@ chrome.contextMenus.create({
     title: "Asciify",
     contexts:["image"],  // ContextType
     onclick: (function(image) {
-	run(image);
+	var renderer = new Renderer();
+	renderImage(image, renderer);
     })
 });
 
@@ -23,10 +24,8 @@ var getCanvas = function() {
     return document.getElementById(UNIQUE_CANVAS_ID);
 };
 
-var run = function(imageInput) {
+var renderImage = function(imageInput, renderer) {
     createCanvas();
-
-    var renderer = new Renderer();
     var inverse = false;
     var imgAsciified = new ImageAsciified(inverse);
     imgAsciified.onload = function(characters) {
