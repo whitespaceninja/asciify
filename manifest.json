@@ -11,5 +11,10 @@
 	"http://*/"
     ],
 
-    "background": {"page": "background.html"}
+    "background": {"page": "background.html"},
+    
+    "content_scripts": [{
+	"matches": ["*://*/*"],
+	"js": ["content_script.js"]
+    }]
 }
