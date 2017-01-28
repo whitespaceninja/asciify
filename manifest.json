@@ -4,19 +4,11 @@
     "name": "Asciify",
     "description": "Translates images in the browser to ascii",
     "version": "1.0",
-
-    //"browser_action": {
-//	"default_icon": "icon.png",
-//	"default_popup": "popup.html"
-  //  },
     "permissions": [
 	"tabs",
 	"activeTab",
 	"contextMenus",
-	"http://*/",
-	"http://stackoverflow.com/favicon.ico",
-	"http://cdn.sstatic.net/stackoverflow/img/favicon.ico",
-	"https://ajax.googleapis.com/"
+	"http://*/"
     ],
 
     "background": {"page": "background.html"}

@@ -1,18 +1,19 @@
 "use strict";
 
-var run = function(imagePath) {
+var createCanvas = function() {
     // create a canvas that we can continually draw to
     var canv = document.createElement('canvas');
     canv.id = 'canvas';
-    document.body.appendChild(canv);
+    document.body.appendChild(canv);    
+};
+
+var run = function(imagePath) {
+    createCanvas();
 
     var renderer = new Renderer();
     renderer.removeAllCharacters();
 
-    //var list = document.getElementsByTagName("img");
-
-    //[].forEach.call(list, function(v,i,a) {
-    var path = imagePath;//v.src;
+    var path = imagePath;
     var inverse = false;
     var imgAsciified = new ImageAsciified(path);
     imgAsciified.inverse = inverse;
@@ -21,8 +22,7 @@ var run = function(imagePath) {
 	renderer.render();
     };
     imgAsciified.load();
-    //});
-}
+};
 
 class Renderer {
     constructor() {
@@ -345,14 +345,12 @@ class ImageAsciified {
     }
 }
 
-var asciify = function(image){
-    run(image);
-};
-
 chrome.contextMenus.create({
     title: "Asciify",
     contexts:["image"],  // ContextType
-    onclick: asciify // A callback function
+    onclick: (function(image) {
+	run(image);
+    })
 });
 
 
