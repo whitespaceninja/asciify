@@ -5,6 +5,15 @@ chrome.contextMenus.create({
     title: "Asciify",
     contexts:["image"],  // ContextType
     onclick: (function(image) {
+	/*var nodesArray = [].slice.call(document.getElementsByTagName('img'));
+	var inputs = nodesArray.filter(function(e) {
+	    e.src == image.srcUrl;
+	});
+
+	if (inputs.length > 0) {
+	    inputs[0].src = 'http://blogs-images.forbes.com/kristintablang/files/2016/02/UberPuppyBowl-1200x675.jpg';
+	}*/
+
 	var renderer = new Renderer();
 	renderImage(image, renderer);
     })
@@ -23,6 +32,28 @@ var createCanvas = function() {
 var getCanvas = function() {
     return document.getElementById(UNIQUE_CANVAS_ID);
 };
+
+var drawImageToCanvas = function(jsImage, canvas) {
+    // resize our canvas accordingly
+    canvas.width = jsImage.width;
+    canvas.height = jsImage.height;
+
+    var context = canvas.getContext('2d');
+
+    try {
+	// wipe it to a blank canvas
+	context.clearRect(0, 0, canvas.width, canvas.height);
+
+	// Put some happy little trees, or whatever you want in there. Remember,
+	// it's all up to you. Beauty is everywhere.
+	context.drawImage(jsImage, 0, 0);
+    } catch (err) {
+	console.log("failed to draw image");
+	return false;
+    }
+    
+    return true;
+}
 
 var renderImage = function(imageInput, renderer) {
     createCanvas();
@@ -154,32 +185,6 @@ class ImageAsciified {
 	this.onload = null;
     }
 
-    drawImage(canvas, jsImage) {
-	if (canvas.width != jsImage.width) {
-	    canvas.width = jsImage.width;
-	}
-
-	if (canvas.height != jsImage.height) {
-	    canvas.height = jsImage.height;
-	}
-
-	var context = canvas.getContext('2d');
-
-	try {
-	    // wipe it to a blank canvas
-	    context.clearRect(0, 0, canvas.width, canvas.height);
-
-	    // Put some happy little trees, or whatever you want in there. Remember,
-	    // it's all up to you. Beauty is everywhere.
-	    context.drawImage(jsImage, 0, 0);
-	} catch (err) {
-	    console.log("failed to draw image");
-	    return false;
-	}
-	
-	return true;
-    }
-
     processImageAsBinaryString(binaryString) {
 	var jsImage = new Image();
 	jsImage.src = binaryString; 
@@ -199,14 +204,15 @@ class ImageAsciified {
 	this.desiredHeight = Math.min(this.sourceHeight, this.desiredHeight);
 
 	var canvas = getCanvas();
-	var success  = this.drawImage(canvas, jsImage);
+	var success  = drawImageToCanvas(jsImage, canvas);
 	if (!success) {
 	    return;
 	}
 
 	var context = canvas.getContext('2d');
 	var pixelData = context.getImageData(0, 0, this.sourceWidth, this.sourceHeight).data;
-	this.onload(this.getCharacters(pixelData));
+	var characters = this.getCharacters(pixelData);
+	this.onload(characters);
     }
 
     load(srcUrl) {
