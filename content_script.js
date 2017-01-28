@@ -1,33 +1,51 @@
 "use strict";
 
+// Add 'Asciify' to the right-click menu for images
+chrome.contextMenus.create({
+    title: "Asciify",
+    contexts:["image"],  // ContextType
+    onclick: (function(image) {
+	run(image);
+    })
+});
+
+// if someone creates an id with this I want to meet them
+var UNIQUE_CANVAS_ID = 'OhOhHereSheComeWwatchOutBoyShellChewYouUp';
+
 var createCanvas = function() {
     // create a canvas that we can continually draw to
     var canv = document.createElement('canvas');
-    canv.id = 'canvas';
+    canv.id = UNIQUE_CANVAS_ID;
     document.body.appendChild(canv);    
 };
 
-var run = function(imagePath) {
+var getCanvas = function() {
+    return document.getElementById(UNIQUE_CANVAS_ID);
+};
+
+var run = function(imageInput) {
     createCanvas();
 
     var renderer = new Renderer();
-    renderer.removeAllCharacters();
-
-    var path = imagePath;
     var inverse = false;
-    var imgAsciified = new ImageAsciified(path);
-    imgAsciified.inverse = inverse;
+    var imgAsciified = new ImageAsciified(inverse);
     imgAsciified.onload = function(characters) {
 	renderer.addCharacterList(characters);
 	renderer.render();
     };
-    imgAsciified.load();
+    imgAsciified.load(imageInput.srcUrl);
 };
 
 class Renderer {
     constructor() {
+	// list of all characters to draw in no particular order.
+	// It is possible to have more than one character at the
+	// same location. It will draw the first one in the list.
     	this.characters = [];
+
+	// the maximum X location of any character in our list
 	this.maxX = 0;
+	// same with Y location
 	this.maxY = 0;
     }
 
@@ -37,12 +55,11 @@ class Renderer {
     }
 
     render() {
-	console.log("render: " + this.characters.length);
 	for (var row = 0; row < this.maxY; row++) {
 	    var output = '';
 
 	    // find all characters that need to be drawn in this row
-	    var charactersInRow = this.getCharactersInRow(row);;
+	    var charactersInRow = this.getCharactersInRow(row);
 	    
 	    // if there aren't any, draw a blank line
 	    if (charactersInRow.length <= 0) {
@@ -68,9 +85,8 @@ class Renderer {
     }
 
     addCharacterList(characterList) {
-	for (var i = 0; i < characterList.length; i++) {
-	    this.addCharacter(characterList[i]);
-	}
+	var that = this;
+	characterList.map(function(c) { that.addCharacter(c); });
     }
 
     removeAllCharacters(character) {
@@ -86,35 +102,26 @@ class Renderer {
     }
 
     findCharacterAtX(characterList, x) {
-	// returns the first character it finds at the specified x position
-	for (var i = 0; i < characterList.length; i++) {
-	    if (characterList[i].x == x) {
-		return characterList[i];
-	    }
+	var index = characterList.map(function(c) { return c.x; }).indexOf(x);
+	if (index < 0) {
+	    return null;
 	}
 
-	return null;
+	return characterList[index];
     }
 
     getCharactersInRow(row) {
-	var charactersInRow = [];
-	for (var i = 0; i < this.characters.length; i++) {
-	    if (this.characters[i].y == row) {
-		charactersInRow.push(this.characters[i]);
-	    }
-	}
-
-	return charactersInRow;
+	return this.characters.filter(function(c) { return c.y == row; });
     }
 
     getOutputLine(charactersInRow) {
 	// ...then draw them all. Put it all in one string for quick render.
 	var output = '';        
-	for (var col = 0; col < this.maxX; col++) {
-	    var characterInPosition = this.findCharacterAtX(charactersInRow, col);
+	for (var x = 0; x < this.maxX; x++) {
+	    var charAtX = this.findCharacterAtX(charactersInRow, x);
 
-	    if (characterInPosition != null) {
-		output = output + characterInPosition.symbol;
+	    if (charAtX != null) {
+		output = output + charAtX.symbol;
 	    } else {
 		output = output + ' ';
 	    }
@@ -124,35 +131,28 @@ class Renderer {
     }
 }
 
+/**
+* Model for an ascii character
+*/
 class Character {
     constructor(initialX, initialY, symbol) {
+	// where on the map are we drawing it
 	this.x = initialX;
 	this.y = initialY;
+	// ascii character
 	this.symbol = symbol;
     }
 }
 
 
 class ImageAsciified {
-    constructor(path) {
-	this.path = path;
-	this.pixels = null;
-	this.inverse = false;
+    constructor(inverse) {
+	this.inverse = inverse;
 	this.sourceWidth = 0;
 	this.sourceHeight = 0;
 	this.CHARACTER_RATIO = 3;
 	this.pixels_per_character_wide = 4;
 	this.onload = null;
-    }
-
-    validate() {
-	if (this.sourceWidth < this.desiredWidth) {
-	    this.desiredWidth = this.sourceWidth;
-	}
-
-	if (this.sourceHeight < this.desiredHeight) {
-	    this.desiredHeight = this.sourceHeight;
-	}
     }
 
     drawImage(canvas, jsImage) {
@@ -174,78 +174,83 @@ class ImageAsciified {
 	    // it's all up to you. Beauty is everywhere.
 	    context.drawImage(jsImage, 0, 0);
 	} catch (err) {
-	    console.log("failed to draw image" + this.path);
+	    console.log("failed to draw image");
 	    return false;
 	}
 	
 	return true;
     }
 
-    processImageAsBinaryString(imgAsciified, binaryString) {
-	var myImg = new Image();
-	myImg.src = binaryString; 
-	imgAsciified.sourceWidth = myImg.width;
-	imgAsciified.sourceHeight = myImg.height;
+    processImageAsBinaryString(binaryString) {
+	var jsImage = new Image();
+	jsImage.src = binaryString; 
+	this.sourceWidth = jsImage.width;
+	this.sourceHeight = jsImage.height;
 
+	// magic number I measured on my laptop for how many characters fit
+	// into a full screen console window shrunk to its minimum
 	var MAX_WIDTH = 239;
 
 	// Scale the width and height based on the source image dimensions
-	imgAsciified.desiredWidth = imgAsciified.sourceWidth / imgAsciified.pixels_per_character_wide;
-	if (imgAsciified.desiredWidth > MAX_WIDTH) {
-	    imgAsciified.desiredWidth = MAX_WIDTH;
-	}
-	imgAsciified.desiredHeight = imgAsciified.desiredWidth / imgAsciified.CHARACTER_RATIO;
-	imgAsciified.validate();
+	this.desiredWidth = this.sourceWidth / this.pixels_per_character_wide;
+	this.desiredHeight = this.desiredWidth / this.CHARACTER_RATIO;
 
-	var canvas = document.getElementById('canvas');
-	var success  = imgAsciified.drawImage(canvas, myImg);
+	// validation
+	this.desiredWidth = Math.min(MAX_WIDTH, Math.min(this.sourceWidth, this.desiredWidth));
+	this.desiredHeight = Math.min(this.sourceHeight, this.desiredHeight);
+
+	var canvas = getCanvas();
+	var success  = this.drawImage(canvas, jsImage);
 	if (!success) {
 	    return;
 	}
 
 	var context = canvas.getContext('2d');
-	var data = context.getImageData(0, 0, imgAsciified.sourceWidth, imgAsciified.sourceHeight).data;
-	imgAsciified.pixels = data;
-	imgAsciified.onload(imgAsciified.getCharacters());
+	var pixelData = context.getImageData(0, 0, this.sourceWidth, this.sourceHeight).data;
+	this.onload(this.getCharacters(pixelData));
     }
 
-    load() {
-	if (this.path.srcUrl.startsWith('data:')) {
+    load(srcUrl) {
+	if (srcUrl.startsWith('data:')) {
 	    // For some reason we got straight up data from the 'src' tag.
 	    // Process it directly
-	    this.processImageAsBinaryString(this, this.path.srcUrl);
+	    this.processImageAsBinaryString(srcUrl);
 	    return;
 	}
 	
-	this.downloadImageAndProcess();
+	this.downloadImageAndProcess(srcUrl);
     }
 
-    downloadImageAndProcess() {
+    downloadImageAndProcess(srcUrl) {
 	// hold on to this for callback function
 	var that = this;
 	
-	// Send off the request to download the source data
+	// Send off the request to download the source data. I've had
+	// better luck with arrayBuffer than a blob so far, but I think
+	// there's probably no reason we couldn't do a blob too
 	var x = new XMLHttpRequest();
 	x.responseType = 'arraybuffer';
-	x.open('get', this.path.srcUrl);
+	x.open('get', srcUrl);
 
 	x.onload = function() {
 	    var arrayBuffer = x.response;
-	    var binaryString = '';
 	    var byteArray = new Uint8Array(arrayBuffer);
+	    var binaryString = '';
 	    for (var i = 0; i < byteArray.byteLength; i++) {
-		binaryString += String.fromCharCode( byteArray [ i ] ); //extracting the bytes
+		//extracting the bytes
+		binaryString += String.fromCharCode( byteArray [ i ] ); 
 	    }
 
-	    var base64 = window.btoa( binaryString ); //creating base64 string
-	    var imgData = "data:image/png;base64," + base64; //creating a base64 uri
+	    //creating base64 string and url
+	    var base64 = window.btoa( binaryString ); 
+	    var imgData = "data:image/png;base64," + base64; 
 
-	    that.processImageAsBinaryString(that, imgData);
+	    that.processImageAsBinaryString(imgData);
 	};
 	x.send();
     }
 
-    getCharacters() {
+    getCharacters(pixels) {
 	var characters = [];
 	var pixelWidth = this.sourceWidth;
 	var pixelHeight = this.sourceHeight;
@@ -268,18 +273,18 @@ class ImageAsciified {
 
 			var index = ((y * this.sourceWidth) + x) * 4;
 			
-			var R = this.pixels[index + 0];
-			var G = this.pixels[index + 1];
-			var B = this.pixels[index + 2];
-			var A = this.pixels[index + 3];
+			var R = pixels[index + 0];
+			var G = pixels[index + 1];
+			var B = pixels[index + 2];
+			var A = pixels[index + 3];
 			
 			pixelSum += R + G + B;
 			numPixels++;
 		    }
 		}
 
-		var thisChar = this.getAsciiCharFromPixelWeight(pixelSum / numPixels, this.inverse);
-		characters.push(new Character(j, i, thisChar));
+		var asciiChar = this.getAsciiCharFromPixelWeight(pixelSum / numPixels, this.inverse);
+		characters.push(new Character(j, i, asciiChar));
 	    }
 	}
 	return characters;
@@ -344,13 +349,3 @@ class ImageAsciified {
 	];
     }
 }
-
-chrome.contextMenus.create({
-    title: "Asciify",
-    contexts:["image"],  // ContextType
-    onclick: (function(image) {
-	run(image);
-    })
-});
-
-
