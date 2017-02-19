@@ -1,16 +1,21 @@
 /*********************************************
-* Set up the context menu
-*********************************************/
+ * Set up the context menu
+ *********************************************/
 
 // Add 'Asciify' to the right-click menu for images
 chrome.contextMenus.create({
     title: "Asciify",
     contexts:["image"],  // ContextType
-    onclick: (function(imageInput) {	
+    onclick: (function(imageInput) {
 	createCanvas();
+
+	// TODO: eventually make this an option on the plugin
 	var inverse = false;
 	var imgAsciified = new ImageAsciified(inverse);
+	
 	imgAsciified.onload = function(characters) {
+	    // after the characters are parsed, send them over to the current window
+	    // for displaying to the user
 	    chrome.tabs.query({ currentWindow: true, active: true }, function (tabs) {
 		chrome.tabs.sendMessage(tabs[0].id, {text: 'render', charData: characters}, null);
 	    });
@@ -27,6 +32,9 @@ chrome.contextMenus.create({
 // if someone creates an id with this I want to meet them
 var UNIQUE_CANVAS_ID = 'OhOhHereSheComeWwatchOutBoyShellChewYouUp';
 
+/**
+ * Finds or creates a canvas element within the current document body.
+ */
 var createCanvas = function() {
     var canvas = document.getElementById(UNIQUE_CANVAS_ID)
     if (canvas !== null) {
@@ -40,10 +48,18 @@ var createCanvas = function() {
     document.body.appendChild(canvas);    
 };
 
+/**
+ * Gets our internal canvas object. Assumes it was already created.
+ */
 var getCanvas = function() {
     return document.getElementById(UNIQUE_CANVAS_ID);
 };
 
+
+/**
+ * Draws a javascript Image object to the javascript Canvas object.
+ * Returns whether it was successful or not.
+ */
 var drawImageToCanvas = function(jsImage, canvas) {
     // resize our canvas accordingly
     canvas.width = jsImage.width;
@@ -68,8 +84,8 @@ var drawImageToCanvas = function(jsImage, canvas) {
 
 
 /*********************************************
-* Wrapper around an ascii character
-*********************************************/
+ * Wrapper around an ascii character
+ *********************************************/
 
 class Character {
     constructor(initialX, initialY, symbol) {
@@ -83,37 +99,43 @@ class Character {
 
 
 /*********************************************
-* Ascii-based manipulations to translate
-* images to a list of Character objects
-*********************************************/
+ * Ascii-based manipulations to translate
+ * images to a list of Character objects
+ *********************************************/
 
 class ImageAsciified {
     constructor(inverse) {
 	this.inverse = inverse;
-	this.sourceWidth = 0;
-	this.sourceHeight = 0;
-	this.CHARACTER_RATIO = 3;
-	this.pixels_per_character_wide = 4;
 	this.onload = null;
+
+	// MAGIC NUMBERS:
+	
+	// I measured this value on my laptop for how many characters fit
+	// into a full screen console window shrunk to its minimum. Probably
+	// nto valid for a ton of other computer screen sizes. TODO: make dynamic
+	this.MAX_WIDTH = 239;
+
+	// characters are about this much taller in ratio than they are wide
+	this.CHARACTER_RATIO = 3;
+
+	// How many pixels wide we want to shrink into a single ascii character
+	this.pixels_per_character_wide = 4;
     }
 
     processImageAsBinaryString(binaryString) {
 	var jsImage = new Image();
 	jsImage.src = binaryString; 
-	this.sourceWidth = jsImage.width;
-	this.sourceHeight = jsImage.height;
+	var imageWidth = jsImage.width;
+	var imageHeight = jsImage.height;
 
-	// magic number I measured on my laptop for how many characters fit
-	// into a full screen console window shrunk to its minimum
-	var MAX_WIDTH = 239;
 
 	// Scale the width and height based on the source image dimensions
-	this.desiredWidth = this.sourceWidth / this.pixels_per_character_wide;
-	this.desiredHeight = this.desiredWidth / this.CHARACTER_RATIO;
+	var charsWide = imageWidth / this.pixels_per_character_wide;
+	var charsHigh = charsWide / this.CHARACTER_RATIO;
 
 	// validation
-	this.desiredWidth = Math.min(MAX_WIDTH, Math.min(this.sourceWidth, this.desiredWidth));
-	this.desiredHeight = Math.min(this.sourceHeight, this.desiredHeight);
+	charsWide = Math.min(MAX_WIDTH, Math.min(imageWidth, charsWide));
+	charsHigh = Math.min(imageHeight, charsHigh);
 
 	var canvas = getCanvas();
 	var success  = drawImageToCanvas(jsImage, canvas);
@@ -122,8 +144,8 @@ class ImageAsciified {
 	}
 
 	var context = canvas.getContext('2d');
-	var pixelData = context.getImageData(0, 0, this.sourceWidth, this.sourceHeight).data;
-	var characters = this.getCharacters(pixelData);
+	var pixelData = context.getImageData(0, 0, imageWidth, imageHeight).data;
+	var characters = this.getCharacters(pixelData, imageWidth, imageHeight, charsWide, charsHigh);
 	this.onload(characters);
     }
 
@@ -167,15 +189,13 @@ class ImageAsciified {
 	x.send();
     }
 
-    getCharacters(pixels) {
+    getCharacters(pixels, imageWidth, imageHeight, charsWide, charsHigh) {
 	var characters = [];
-	var pixelWidth = this.sourceWidth;
-	var pixelHeight = this.sourceHeight;
-	var pixelsPerCharacterW = Math.round(pixelWidth / this.desiredWidth, 0);
-	var pixelsPerCharacterH = Math.round(pixelHeight / this.desiredHeight, 0);
+	var pixelsPerCharacterW = Math.round(imageWidth / charsWide, 0);
+	var pixelsPerCharacterH = Math.round(imageHeight / charsHigh, 0);
 	
-	for(var i = 0; i < this.desiredHeight; ++i) {
-	    for(var j = 0; j < this.desiredWidth; ++j) {
+	for(var i = 0; i < charsHigh; ++i) {
+	    for(var j = 0; j < charsWide; ++j) {
 
 		var pixelSum = 0;
 		var numPixels = 0;
@@ -188,7 +208,7 @@ class ImageAsciified {
 			if (x >= pixelWidth || y >= pixelHeight)
 			    break;
 
-			var index = ((y * this.sourceWidth) + x) * 4;
+			var index = ((y * imageWidth) + x) * 4;
 			
 			var R = pixels[index + 0];
 			var G = pixels[index + 1];
@@ -221,6 +241,7 @@ class ImageAsciified {
     }
 
     getAsciiMapping(inverse) {
+	// darkest pixels get the lightest ascii character
 	if (this.inverse) {
 	    return [
 		[40,  ' '],
@@ -242,7 +263,8 @@ class ImageAsciified {
 		[760, '@']
 	    ];
 	}
-	
+
+	// darkest pixels get the darkest ascii character
 	return [
 	    [40,  '@'],
 	    [80,  '#'],

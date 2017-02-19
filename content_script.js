@@ -4,14 +4,22 @@
 chrome.runtime.onMessage.addListener(function (msg, sender, sendResponse) {
     // If the received message has the expected format...
     if (msg.text === 'render') {
-	var renderer = new Renderer();
+	var renderer = new AsciiConsoleRenderer();
 	renderer.addCharacterList(msg.charData);
 	renderer.render();
     }
 });
 
 
-class Renderer {
+/**
+ * AsciiConsoleRenderer is a class built for rendering maps of ascii characters.
+ * Usage:
+ *     Instantiate a new object, then add ascii characters using either 
+ *     addCharacter() or addCharacterList(). Then call render(). Calling
+ *     render() will print out the characters contained in the internal
+ *     map to the console.
+ */
+class AsciiConsoleRenderer {
     constructor() {
 	// list of all characters to draw in no particular order.
 	// It is possible to have more than one character at the
@@ -45,29 +53,50 @@ class Renderer {
 		// else there must be characters here, sort them first...
 		charactersInRow.sort(this.compareX);
 		
-		// ...then draw them all. Put it all in one string for quick render.
+		// Put it all in one string for quick render.
 		output = output + this.getOutputLine(charactersInRow);
 	    }
 
+	    // finally, draw this line.
 	    console.log(output);
 	}
     }
 
+    /**
+     * Adds a character object to our internal map. 
+     * character: a Character object. Must have the following members:
+     *      symbol (char)
+     *      x (int)
+     *      y (int)
+     */
     addCharacter(character) {
 	this.characters.push(character);
 	this.maxX = Math.max(this.maxX, character.x);
 	this.maxY = Math.max(this.maxY, character.y);
     }
 
+    /**
+     * Adds a list of character objects to our internal map. 
+     * characterList: a list of Character objects. Each object must have the following members:
+     *      symbol (char)
+     *      x (int)
+     *      y (int)
+     */
     addCharacterList(characterList) {
 	var that = this;
 	characterList.map(function(c) { that.addCharacter(c); });
     }
 
+    /**
+     * Clears out the internal character map in this renderer
+     */
     removeAllCharacters(character) {
 	this.characters = [];
     }
 
+    /**
+     * Internal helper method for comparing character positions
+     */
     compareX(a,b) {
 	if (a.x < b.x)
 	    return -1;
@@ -76,6 +105,10 @@ class Renderer {
 	return 0;
     }
 
+    /**
+     * Searches the given list of characters for one that has the given 'x' value
+     * returns null if none is found.
+     */
     findCharacterAtX(characterList, x) {
 	var index = characterList.map(function(c) { return c.x; }).indexOf(x);
 	if (index < 0) {
@@ -85,10 +118,17 @@ class Renderer {
 	return characterList[index];
     }
 
+    /**
+     * Gets all characters in the specified y position (given as 'row')
+     */
     getCharactersInRow(row) {
 	return this.characters.filter(function(c) { return c.y == row; });
     }
 
+    /**
+     * Given a list of characters, formats and returns a single string that
+     * can be printed to the console as one line.
+     */
     getOutputLine(charactersInRow) {
 	// ...then draw them all. Put it all in one string for quick render.
 	var output = '';        
